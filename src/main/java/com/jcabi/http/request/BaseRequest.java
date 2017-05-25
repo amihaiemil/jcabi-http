@@ -39,6 +39,7 @@ import com.jcabi.http.Response;
 import com.jcabi.http.Wire;
 import com.jcabi.immutable.Array;
 import com.jcabi.log.Logger;
+
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.io.InputStream;
@@ -52,9 +53,12 @@ import java.nio.charset.Charset;
 import java.util.Collection;
 import java.util.LinkedList;
 import java.util.Map;
+import java.util.UUID;
+
 import javax.json.Json;
 import javax.json.JsonStructure;
 import javax.ws.rs.core.UriBuilder;
+
 import lombok.EqualsAndHashCode;
 
 /**
@@ -478,6 +482,14 @@ final class BaseRequest implements Request {
     private static final class MultipartFormBody implements RequestBody {
 
         /**
+         * Boundary to separate the params in the multipart
+         * body. According to the RFC, it can be any String which
+         * is not contained in any of the params.
+         * @see https://tools.ietf.org/html/rfc1867
+         */
+        private final transient String boundary;
+
+        /**
          * Content encapsulated.
          */
         @Immutable.Array
@@ -494,8 +506,24 @@ final class BaseRequest implements Request {
          * @param body Text to encapsulate
          */
         MultipartFormBody(final BaseRequest req, final byte[] body) {
+            this(
+                req, body,
+                String.format("Jcabi-Http-%s" + UUID.randomUUID())
+            );
+        }
+        
+        /**
+         * Public ctor.
+         * @param req Request
+         * @param body Text to encapsulate
+         * @param boundary Parts boundary.
+         */
+        MultipartFormBody(
+            final BaseRequest req, final byte[] body, final String boundary
+        ) {
             this.owner = req;
             this.text = body.clone();
+            this.boundary = boundary;
         }
 
         @Override
@@ -511,6 +539,11 @@ final class BaseRequest implements Request {
                 this.owner.hdrs,
                 this.owner.mtd,
                 this.text
+            ).header(
+                "Content-Type",
+                String.format(
+                    "multipart/form-data; boundary=%s", this.boundary
+                )
             );
         }
 
@@ -538,7 +571,11 @@ final class BaseRequest implements Request {
 
         @Override
         public RequestBody formParam(final String name, final Object value) {
-            throw new UnsupportedOperationException("Method not available");
+        	return new BaseRequest.MultipartFormBody(
+                this.owner,
+                "".getBytes(),
+                this.boundary
+            );
         }
 
         @Override
