@@ -39,8 +39,8 @@ import com.jcabi.http.Response;
 import com.jcabi.http.Wire;
 import com.jcabi.immutable.Array;
 import com.jcabi.log.Logger;
-
 import java.io.ByteArrayInputStream;
+import java.io.File;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.StringWriter;
@@ -50,15 +50,15 @@ import java.lang.reflect.InvocationTargetException;
 import java.net.URI;
 import java.net.URLEncoder;
 import java.nio.charset.Charset;
+import java.nio.file.Files;
+import java.nio.file.Paths;
 import java.util.Collection;
 import java.util.LinkedList;
 import java.util.Map;
 import java.util.UUID;
-
 import javax.json.Json;
 import javax.json.JsonStructure;
 import javax.ws.rs.core.UriBuilder;
-
 import lombok.EqualsAndHashCode;
 
 /**
@@ -533,18 +533,23 @@ final class BaseRequest implements Request {
 
         @Override
         public Request back() {
+        	final String closed = new StringBuilder()
+        	    .append(this.toString())
+        	    .append("\n")
+        	    .append(this.boundary)
+        	    .append("--").toString();
             return new BaseRequest(
                 this.owner.wire,
                 this.owner.home,
                 this.owner.hdrs,
                 this.owner.mtd,
-                this.text
+                closed.getBytes()
             ).header(
                 "Content-Type",
                 String.format(
                     "multipart/form-data; boundary=%s", this.boundary
                 )
-            );
+            ).header("Content-Length", closed.length());
         }
 
         @Override
@@ -571,9 +576,27 @@ final class BaseRequest implements Request {
 
         @Override
         public RequestBody formParam(final String name, final Object value) {
-        	return new BaseRequest.MultipartFormBody(
+            final StringBuilder body = new StringBuilder(this.toString())
+                .append(this.boundary).append("\n");
+            if(value instanceof File) {
+                try {
+                    final File upload = (File) value;
+                    body.append("Content-Disposition: form-data; name=")
+                        .append("\"").append(name).append("\"; filename=")
+                        .append("\"").append(upload.getName()).append("\"\n")
+                        .append("Content-Type: application/octet-stream\n\n")
+                        .append(this.bytes(upload).toString());
+                } catch (final IOException ex) {
+                    throw new IllegalStateException("Cannot read file.", ex);
+                }
+            } else {
+                body.append("Content-Disposition: form-data; name=")
+                    .append("\"").append(name).append("\"\n\n")
+                    .append(value.toString());
+            }
+            return new BaseRequest.MultipartFormBody(
                 this.owner,
-                "".getBytes(),
+                body.toString().getBytes(),
                 this.boundary
             );
         }
@@ -585,6 +608,16 @@ final class BaseRequest implements Request {
                 body = body.formParam(param.getKey(), param.getValue());
             }
             return body;
+        }
+        
+        /**
+         * Bytes of an uploaded file.
+         * @param upload File being uploaded.
+         * @return Contents of the file as byte[]
+         * @throws IOException If the file cannog be read.
+         */
+        private byte[] bytes(final File upload) throws IOException {
+            return Files.readAllBytes(Paths.get(upload.getPath()));
         }
     }
 

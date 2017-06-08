@@ -129,7 +129,11 @@ public interface Request {
     RequestBody body();
 
     /**
-     * Get multipart form (multipart/form-data) body.
+     * Get multipart form (multipart/form-data) body.<br>
+     * You shouldn't set the headers "Content-Type" and "Content-Length"
+     * after calling this, because they are automatically set.<br>
+     * Content-Type is set to multipart/form-data; boundary={UUID},
+     * while Content-Length is set to the length of the inputs.
      * @return New altered request
      */
     RequestBody multipartBody();
